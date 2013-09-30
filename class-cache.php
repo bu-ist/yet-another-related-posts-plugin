@@ -39,7 +39,11 @@ abstract class YARPP_Cache {
 	// Note: return value changed in 3.4
 	// return YARPP_NO_RELATED | YARPP_RELATED | YARPP_DONT_RUN | false if no good input
 	function enforce( $reference_ID, $force = false ) {
-		if ( !$reference_ID = absint($reference_ID) )
+		// @since 3.5.3: don't compute on revisions
+		if ( $the_post = wp_is_post_revision($reference_ID) )
+			$reference_ID = $the_post;
+
+		if ( !is_int( $reference_ID ) )
 			return false;
 	
 		$status = $this->is_cached($reference_ID);
@@ -50,12 +54,9 @@ abstract class YARPP_Cache {
 			return YARPP_DONT_RUN;
 	
 		// If not cached, process now:
-		if ( YARPP_NOT_CACHED == $status || $force ) {
-			$status = $this->update($reference_ID);
-			// if still not cached, there's a problem, but for the time being return NO RELATED
-			if ( YARPP_NOT_CACHED === $status )
-				return YARPP_NO_RELATED;
-		}
+		if ( YARPP_NOT_CACHED == $status || $force )
+			$status = $this->update((int) $reference_ID);
+			// status now will be YARPP_NO_RELATED | YARPP_RELATED
 	
 		// There are no related posts
 		if ( YARPP_NO_RELATED === $status )
@@ -77,49 +78,51 @@ abstract class YARPP_Cache {
 	 * POST STATUS INTERACTIONS
 	 */
 	
-	function save_post($post_ID) {
-		global $wpdb;
+	// Clear the cache for this entry and for all posts which are "related" to it.
+	// New in 3.2: This is called when a post is deleted.
+	function delete_post( $post_ID ) {
+		// Clear the cache for this post.
+		$this->clear((int) $post_ID);
 	
-		// @since 3.2: don't compute cache during import
+		// Find all "peers" which list this post as a related post and clear their caches
+		if ( $peers = $this->related(null, (int) $post_ID) )
+			$this->clear($peers);
+	}
+	
+	// New in 3.2.1: handle various post_status transitions
+	function transition_post_status( $new_status, $old_status, $post ) {
+		$post_ID = $post->ID;
+
 		// @since 3.4: don't compute on revisions
-		if (defined('WP_IMPORTING') || wp_is_post_revision($post_ID))
-			return;
+		// @since 3.5: compute on the parent instead
+		if ( $the_post = wp_is_post_revision($post_ID) )
+			$post_ID = $the_post;
+
+		// unpublish
+		if ( $old_status == 'publish' && $new_status != 'publish' ) {
+			// Find all "peers" which list this post as a related post and clear their caches
+			if ( $peers = $this->related(null, (int) $post_ID) )
+				$this->clear($peers);
+		}
+		
+		// publish
+		if ( $old_status != 'publish' && $new_status == 'publish' ) {
+			// find everything which is related to this post, and clear them, so that this
+			// post might show up as related to them.
+			if ( $related = $this->related($post_ID, null) )
+				$this->clear($related);
+		}
 
 		// @since 3.4: simply clear the cache on save; don't recompute.
 		$this->clear((int) $post_ID);
 	}
 	
-	// Clear the cache for this entry and for all posts which are "related" to it.
-	// New in 3.2: This is called when a post is deleted.
-	function delete_post($post_ID) {
-		// Clear the cache for this post.
-		$this->clear($post_ID);
-	
-		// Find all "peers" which list this post as a related post.
-		$peers = $this->related(null, $post_ID);
-		// Clear the peers' caches.
-		$this->clear($peers);
-	}
-	
-	// New in 3.2.1: handle various post_status transitions
-	function transition_post_status($new_status, $old_status, $post) {
-		switch ($new_status) {
-			case "draft":
-				$this->delete_post($post->ID);
-				break;
-			case "publish":
-				// find everything which is related to this post, and clear them, so that this
-				// post might show up as related to them.
-				$related = $this->related($post->ID, null);
-				$this->clear($related);
-		}
-	}
-	
-	function set_score_override_flag($q) {
+	function set_score_override_flag( $q ) {
 		if ( $this->is_yarpp_time() ) {
-			$this->score_override = ($q->query_vars['orderby'] == 'score');
+			$this->score_override = ( isset($q->query_vars['orderby']) && 
+				$q->query_vars['orderby'] == 'score' );
 	
-			if (!empty($q->query_vars['showposts'])) {
+			if ( !empty($q->query_vars['showposts']) ) {
 				$this->online_limit = $q->query_vars['showposts'];
 			} else {
 				$this->online_limit = false;
@@ -160,14 +163,14 @@ abstract class YARPP_Cache {
 	
 		$newsql .= 'ROUND(0';
 	
-		if ((int) @$weight['body'])
+		if ( isset($weight['body']) && (int) $weight['body'] )
 			$newsql .= " + (MATCH (post_content) AGAINST ('".$wpdb->escape($keywords['body'])."')) * ". absint($weight['body']);
-		if ((int) @$weight['title'])
+		if ( isset($weight['body']) && (int) $weight['title'] )
 			$newsql .= " + (MATCH (post_title) AGAINST ('".$wpdb->escape($keywords['title'])."')) * ". absint($weight['title']);
 	
 		// Build tax criteria query parts based on the weights
-		foreach ( $weight['tax'] as $tax => $weight ) {
-			$newsql .= " + " . $this->tax_criteria($reference_ID, $tax) . " * " . intval($weight);
+		foreach ( (array) $weight['tax'] as $tax => $tax_weight ) {
+			$newsql .= " + " . $this->tax_criteria($reference_ID, $tax) . " * " . intval($tax_weight);
 		}
 	
 		$newsql .= ',1) as score';
@@ -175,7 +178,7 @@ abstract class YARPP_Cache {
 		$newsql .= "\n from $wpdb->posts \n";
 	
 		$exclude_tt_ids = wp_parse_id_list( $exclude );
-		if ( count($exclude_tt_ids) || count($weight['tax']) || count($require_tax) ) {
+		if ( count($exclude_tt_ids) || count((array) $weight['tax']) || count($require_tax) ) {
 			$newsql .= "left join $wpdb->term_relationships as terms on ( terms.object_id = $wpdb->posts.ID ) \n";
 		}
 	
@@ -183,7 +186,7 @@ abstract class YARPP_Cache {
 	
 		$newsql .= " where post_status in ( 'publish', 'static' ) and ID != '$reference_ID'";
 	
-		if ($past_only) // 3.1.8: revised $past_only option
+		if ( $past_only ) // 3.1.8: revised $past_only option
 			$newsql .= " and post_date <= '$reference_post->post_date' ";
 		if ( !$show_pass_post )
 			$newsql .= " and post_password ='' ";
@@ -198,12 +201,13 @@ abstract class YARPP_Cache {
 		// HAVING
 		// number_format fix suggested by vkovalcik! :)
 		$safethreshold = number_format(max($threshold,0.1), 2, '.', '');
-		$newsql .= " having score >= $safethreshold";
+		// @since 3.5.3: ID=0 is a special value; never save such a result.
+		$newsql .= " having score >= $safethreshold and ID != 0";
 		if ( count($exclude_tt_ids) ) {
 			$newsql .= " and bit_or(terms.term_taxonomy_id in (" . join(',', $exclude_tt_ids) . ")) = 0";
 		}
 	
-		foreach ( $require_tax as $tax => $number ) {
+		foreach ( (array) $require_tax as $tax => $number ) {
 			$newsql .= ' and ' . $this->tax_criteria($reference_ID, $tax) . ' >= ' . intval($number);
 		}
 	
@@ -295,8 +299,7 @@ abstract class YARPP_Cache {
 	
 		$lang = 'en_US';
 		if ( defined('WPLANG') ) {
-			$lang = substr(WPLANG, 0, 2);
-			switch ( $lang ) {
+			switch ( substr(WPLANG, 0, 2) ) {
 				case 'de':
 					$lang = 'de_DE';
 				case 'it':
@@ -311,6 +314,8 @@ abstract class YARPP_Cache {
 					$lang = 'cs_CZ';
 				case 'nl':
 					$lang = 'nl_NL';
+				default:
+					$lang = 'en_US';
 			}
 		}
 	
@@ -381,7 +386,7 @@ abstract class YARPP_Cache {
 		static $blacklist, $blackmethods;
 	
 		if ( is_null($blacklist) || is_null($blackmethods) ) {
-			$yarpp_blacklist = array('diggZEt_AddBut', 'reddZEt_AddBut', 'dzoneZEt_AddBut', 'wp_syntax_before_filter', 'wp_syntax_after_filter', 'wp_codebox_before_filter', 'wp_codebox_after_filter', 'do_shortcode', 'sharing_display');//,'insert_tweet_this'
+			$yarpp_blacklist = array('diggZEt_AddBut', 'reddZEt_AddBut', 'dzoneZEt_AddBut', 'wp_syntax_before_filter', 'wp_syntax_after_filter', 'wp_codebox_before_filter', 'wp_codebox_after_filter', 'do_shortcode', 'sharing_display', 'really_simple_share_content');//,'insert_tweet_this'
 			$yarpp_blackmethods = array('addinlinejs', 'replacebbcode', 'filter_content');
 		
 			$blacklist = (array) apply_filters( 'yarpp_blacklist', $yarpp_blacklist );
@@ -468,6 +473,10 @@ class YARPP_Cache_Bypass extends YARPP_Cache {
 
 	public function cache_status() {
 		return 0; // always uncached
+	}
+
+	public function stats() {
+		return array(); // always unknown
 	}
 
 	public function uncached($limit = 20, $offset = 0) {
@@ -576,13 +585,10 @@ class YARPP_Cache_Bypass extends YARPP_Cache {
 		remove_filter('posts_request',array(&$this,'demo_request_filter'));
 	}
 
-	// @return YARPP_NO_RELATED | YARPP_RELATED | YARPP_NOT_CACHED
-	public function update($reference_ID) {
+	// @return YARPP_NO_RELATED | YARPP_RELATED
+	// @used by enforce
+	protected function update($reference_ID) {
 		global $wpdb;
-
-		// $reference_ID must be numeric
-		if ( !$reference_ID = absint($reference_ID) )
-			return YARPP_NOT_CACHED;
 
 		return YARPP_RELATED;
 	}
