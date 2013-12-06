@@ -3,7 +3,7 @@
 Plugin Name: Yet Another Related Posts Plugin
 Plugin URI: http://yarpp.org/
 Description: Returns a list of related entries based on a unique algorithm for display on your blog and RSS feeds. Now with thumbnail support built-in!
-Version: 4.0.8
+Version: 4.0.8 BU1
 Author: mitcho (Michael Yoshitaka Erlewine)
 Author URI: http://mitcho.com/
 */
