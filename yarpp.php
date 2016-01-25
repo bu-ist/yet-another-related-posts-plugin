@@ -60,3 +60,9 @@ include_once(YARPP_DIR.'/classes/YARPP_Cache_'.ucfirst(YARPP_CACHE_TYPE).'.php')
 /* WP hooks ----------------------------------------------------------------------------------------------------------*/
 add_action('init', 'yarpp_init');
 add_action('activate_'.plugin_basename(__FILE__), 'yarpp_plugin_activate', 10, 1);
+
+/* Enable wp-cli commands --------------------------------------------------------------------------------------------*/
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	include_once __DIR__ . '/classes/YARPP_Cli.php';
+	WP_CLI::add_command( 'yarpp', 'YARPP_CLI' );
+}
