@@ -8,10 +8,10 @@ class YARPP_TestCache extends WP_UnitTestCase {
 
 
 	function testCacheExists() {
-		// replace this with some actual testing code
+		// see if the plug was successfully activated and the cache was enabled
 		global $yarpp;
-
 		$this->assertTrue( $yarpp->cache->is_enabled() );
 	}
+
 }
 
