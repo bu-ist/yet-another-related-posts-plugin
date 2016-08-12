@@ -12,13 +12,9 @@ class YARPP_Cache_Tables extends YARPP_Cache {
 
 	public function is_enabled() {
 		global $wpdb;
-		// now check for the cache table
-		$table_count = $wpdb->get_var($wpdb->prepare(
-			"SELECT count(TABLE_NAME) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'", $wpdb->dbname, ($wpdb->prefix . YARPP_TABLES_RELATED_TABLE)
-			)
-		);
-
-		if ($table_count == 1) 
+		// now check for the cache tables
+		$tabledata = $wpdb->get_col("show tables");
+		if (in_array($wpdb->prefix . YARPP_TABLES_RELATED_TABLE,$tabledata) !== false)
 			return true;
 		else
 			return false;
