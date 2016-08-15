@@ -2,7 +2,7 @@
 /*----------------------------------------------------------------------------------------------------------------------
 Plugin Name: Yet Another Related Posts Plugin
 Description: Adds related posts to your site and in RSS feeds, based on a powerful, customizable algorithm. Enabling YARPP Pro gives you access to even more powerful features. <a href="http://www.yarpp.com" target="_blank">Find out more</a>.
-Version: 4.3.1
+Version: 4.3.1-BU-0.3
 Author: Adknowledge
 Author URI: http://www.yarpp.com/
 Plugin URI: http://www.yarpp.com/
