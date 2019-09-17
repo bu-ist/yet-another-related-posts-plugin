@@ -7,7 +7,7 @@
  * More information on the custom templates is available at http://mitcho.com/blog/projects/yarpp-3-templates/
 */
 
-get_currentuserinfo();
+wp_get_current_user();
 
 $options = array(
         'before_title',

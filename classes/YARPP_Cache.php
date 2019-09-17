@@ -463,9 +463,12 @@ abstract class YARPP_Cache {
 		// Sort
 		if ( !isset( $merged_filters[ $tag ] ) ) {
 			//let's stop getting a php warning here, ok?
-			(is_object( $wp_filter[$tag] ) ) ?
-				ksort( get_object_vars( $wp_filter[$tag] ) )
-				: ksort($wp_filter[$tag]);
+			if ( is_object( $wp_filter[ $tag ] ) ) {
+				$tag_filter_vars = get_object_vars( $wp_filter[ $tag ] );
+				ksort( $tag_filter_vars );
+			} else {
+				ksort( $wp_filter[ $tag ] );
+			}
 
 			$merged_filters[ $tag ] = true;
 		}
@@ -477,8 +480,7 @@ abstract class YARPP_Cache {
 
 		do {
 			foreach( (array) current($wp_filter[$tag]) as $the_ )
-				if ( !is_null($the_['function'])
-				and $this->white($the_['function'])){ // HACK
+				if ( isset( $the_['function'] ) && $this->white($the_['function'])){ // HACK
 					$args[1] = $value;
 					$value = call_user_func_array($the_['function'], array_slice($args, 1, (int) $the_['accepted_args']));
 				}
