@@ -1050,6 +1050,18 @@ class YARPP {
             $reference_ID = get_the_ID();
         }
 
+		// Check for the display_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
+		$cached_output = wp_cache_get( "display_related_for_{$reference_ID}", 'bu_yarpp_cache' );
+
+		// If cached output is found, return it and bail.
+		if ( $cached_output ) {
+			if ( $echo ) {
+				echo $cached_output;
+			}
+
+			return $cached_output;
+		}
+
         /**
          * @since 3.5.3 don't compute on revisions.
          */
@@ -1151,6 +1163,9 @@ class YARPP {
         $output .= ($optin) ? '<img src="http://yarpp.org/pixels/'.md5(get_bloginfo('url')).'" alt="YARPP"/>'."\n" : null;
         $output .= "</div>\n";
 
+		// Cache the output and store it for 15 minutes (900 secs).
+		wp_cache_set( "display_related_for_{$reference_ID}", $output, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+
         if ($echo) echo $output;
 		return $output;
 	}
@@ -1170,11 +1185,19 @@ class YARPP {
 			$reference_ID = get_the_ID();
         }
 
+		// Check for the get_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
+		$cached_posts = wp_cache_get( "get_related_for_{$reference_ID}", 'bu_yarpp_cache' );
+
+		// If cached posts is found, return them and bail.
+		if ( $cached_posts ) {
+			return $cached_posts;
+		}
+
         /**
 		 * @since 3.5.3: don't compute on revisions.
          */
 		if ($the_post = wp_is_post_revision($reference_ID)) $reference_ID = $the_post;
-			
+
 		$this->setup_active_cache($args);
 
 		$options = array('limit', 'order');
@@ -1207,7 +1230,10 @@ class YARPP {
         );
 	
 		$this->active_cache->end_yarpp_time();
-	
+
+		// Cache the posts and store for 15 minutes (900 secs).
+		wp_cache_set( "get_related_for_{$reference_ID}", $related_query->posts, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+
 		return $related_query->posts;
 	}
 	
@@ -1226,6 +1252,14 @@ class YARPP {
         } else {
 			$reference_ID = get_the_ID();
         }
+
+		// Check for the get_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
+		$cached_have_posts = wp_cache_get( "related_exists_for_{$reference_ID}", 'bu_yarpp_cache' );
+
+		// If cached output is found, return it and bail.
+		if ( isset( $cached_have_posts ) ) {
+			return $cached_have_posts;
+		}
 
 		/** @since 3.5.3: don't compute on revisions */
 		if ($the_post = wp_is_post_revision($reference_ID)) $reference_ID = $the_post;
@@ -1259,7 +1293,10 @@ class YARPP {
 		unset($related_query);
 
 		$this->active_cache->end_yarpp_time();
-	
+
+		// Cache the posts and store for 15 minutes (900 secs).
+		wp_cache_set( "related_exists_for_{$reference_ID}", $return, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+
 		return $return;
 	}
 		
