@@ -1092,11 +1092,14 @@ class YARPP {
             $orders = explode(' ', $order);
             $wp_query->query(
                 array(
-                    'p'         => $reference_ID,
-                    'orderby'   => $orders[0],
-                    'order'     => $orders[1],
-                    'showposts' => $limit,
-                    'post_type' => (isset($args['post_type']) ? $args['post_type'] : $this->get_post_types())
+                    'p'                      => $reference_ID,
+                    'orderby'                => $orders[0],
+                    'order'                  => $orders[1],
+                    'showposts'              => $limit,
+                    'post_type'              => (isset($args['post_type']) ? $args['post_type'] : $this->get_post_types()),
+                    'no_found_rows'          => true,
+                    'update_post_meta_cache' => false,
+                    'update_post_term_cache' => false,
                 )
             );
         }
@@ -1212,11 +1215,14 @@ class YARPP {
 		$related_query = new WP_Query();
 		$orders = explode(' ',$order);
 		$related_query->query(array(
-			'p'         => $reference_ID,
-			'orderby'   => $orders[0],
-			'order'     => $orders[1],
-			'showposts' => $limit,
-			'post_type' => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types()
+			'p'                      => $reference_ID,
+			'orderby'                => $orders[0],
+			'order'                  => $orders[1],
+			'showposts'              => $limit,
+			'post_type'              => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types(),
+			'no_found_rows'          => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
 		));
 	
 		$related_query->posts = apply_filters(
@@ -1274,9 +1280,13 @@ class YARPP {
 		$this->active_cache->begin_yarpp_time($reference_ID, $args);
 		$related_query = new WP_Query();
 		$related_query->query(array(
-			'p'         => $reference_ID,
-			'showposts' => 1,
-			'post_type' => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types()
+			'p'                      => $reference_ID,
+			'showposts'              => 1,
+			'post_type'              => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types(),
+			'no_found_rows'          => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
+			'fields'                 => 'ids',
 		));
 		
 		$related_query->posts = apply_filters(
