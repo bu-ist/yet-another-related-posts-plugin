@@ -1169,8 +1169,8 @@ class YARPP {
         $output .= ($optin) ? '<img src="http://yarpp.org/pixels/'.md5(get_bloginfo('url')).'" alt="YARPP"/>'."\n" : null;
         $output .= "</div>\n";
 
-		// Cache the output and store it for 15 minutes (900 secs).
-		wp_cache_set( $cache_key, $output, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		// Cache the output and store it for one day.
+		wp_cache_set( $cache_key, $output, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
         if ($echo) echo $output;
 		return $output;
@@ -1243,8 +1243,8 @@ class YARPP {
 
 		$this->active_cache->end_yarpp_time();
 
-		// Cache the posts and store for 15 minutes (900 secs).
-		wp_cache_set( $cache_key, $related_query->posts, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		// Cache the posts and store for one day.
+		wp_cache_set( $cache_key, $related_query->posts, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
 		return $related_query->posts;
 	}
@@ -1310,9 +1310,9 @@ class YARPP {
 
 		$return = $related_query->have_posts();
 
-		// Cache the posts and store for 15 minutes (900 secs).
+		// Cache the posts and store for one day.
 		$cached_related_value = ( $return ) ? true : null;
-		wp_cache_set( $cache_key, $cached_related_value, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		wp_cache_set( $cache_key, $cached_related_value, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
 		unset($related_query);
 
