@@ -1050,8 +1050,11 @@ class YARPP {
             $reference_ID = get_the_ID();
         }
 
-		// Check for the display_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
-		$cached_output = wp_cache_get( "display_related_for_{$reference_ID}", 'bu_yarpp_cache' );
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = md5( 'display_related_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_output = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
 		// If cached output is found, return it and bail.
 		if ( $cached_output ) {
@@ -1167,7 +1170,7 @@ class YARPP {
         $output .= "</div>\n";
 
 		// Cache the output and store it for 15 minutes (900 secs).
-		wp_cache_set( "display_related_for_{$reference_ID}", $output, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		wp_cache_set( $cache_key, $output, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
 
         if ($echo) echo $output;
 		return $output;
@@ -1188,8 +1191,11 @@ class YARPP {
 			$reference_ID = get_the_ID();
         }
 
-		// Check for the get_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
-		$cached_posts = wp_cache_get( "get_related_for_{$reference_ID}", 'bu_yarpp_cache' );
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = md5( 'get_related_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_posts = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
 		// If cached posts is found, return them and bail.
 		if ( $cached_posts ) {
@@ -1234,11 +1240,11 @@ class YARPP {
                 'related_ID'    => $reference_ID
             )
         );
-	
+
 		$this->active_cache->end_yarpp_time();
 
 		// Cache the posts and store for 15 minutes (900 secs).
-		wp_cache_set( "get_related_for_{$reference_ID}", $related_query->posts, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		wp_cache_set( $cache_key, $related_query->posts, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
 
 		return $related_query->posts;
 	}
@@ -1259,8 +1265,11 @@ class YARPP {
 			$reference_ID = get_the_ID();
         }
 
-		// Check for the get_related_for_{$reference_ID} key in the 'bu_yarpp_cache' group.
-		$cached_related = wp_cache_get( "related_exists_for_{$reference_ID}", 'bu_yarpp_cache' );
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = md5( 'related_exists_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_related = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
 		// If cached output is found, return it and bail.
 		if ( isset( $cached_related ) ) {
@@ -1300,10 +1309,10 @@ class YARPP {
         );
 
 		$return = $related_query->have_posts();
-	
+
 		// Cache the posts and store for 15 minutes (900 secs).
 		$cached_related_value = ( $return ) ? true : null;
-		wp_cache_set( "related_exists_for_{$reference_ID}", $cached_related_value, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
+		wp_cache_set( $cache_key, $cached_related_value, 'bu_yarpp_cache', 15 * MINUTE_IN_SECONDS );
 
 		unset($related_query);
 
