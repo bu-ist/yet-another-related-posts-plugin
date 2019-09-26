@@ -41,6 +41,8 @@ class YARPP {
 		$this->cache            = new $this->storage_class($this);
 		$this->cache_bypass     = new YARPP_Cache_Bypass($this);
 
+		$this->wp_last_changed = $this->get_wp_last_changed();
+
 		register_activation_hook(__FILE__, array($this, 'activate'));
 
         /**
@@ -232,6 +234,23 @@ class YARPP {
         return $out;
     }
 	
+	/**
+	 * Returns the value of `last_changed` from the WP core `posts` cache group
+	 * if it exists, otherwise returns the current time.
+	 *
+	 * @return string
+	 */
+	private function get_wp_last_changed() {
+		$last_changed = wp_cache_get( 'last_changed', 'posts' );
+
+		if ( ! $last_changed ) {
+			$last_changed = microtime();
+			wp_cache_set( 'last_changed', $last_changed, 'posts' );
+		}
+
+		return $last_changed;
+	}
+
 	private function array_flatten($array, $given = array()) {
 		foreach ($array as $key => $val) {
 			$given[] = $key;
@@ -1051,18 +1070,19 @@ class YARPP {
         }
 
 		// Create a cache key from the provided reference ID and args.
-		$cache_key = md5( 'display_related_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+		$cache_key = 'display_related_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
 
 		// Check for the key in the 'bu_yarpp_cache' group.
 		$cached_output = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
-		// If cached output is found, return it and bail.
-		if ( $cached_output ) {
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_output && $this->wp_last_changed === $cached_output['last_changed'] ) {
 			if ( $echo ) {
-				echo $cached_output;
+				echo $cached_output['value'];
 			}
 
-			return $cached_output;
+			return $cached_output['value'];
 		}
 
         /**
@@ -1170,7 +1190,12 @@ class YARPP {
         $output .= "</div>\n";
 
 		// Cache the output and store it for one day.
-		wp_cache_set( $cache_key, $output, 'bu_yarpp_cache', DAY_IN_SECONDS );
+		$cached_output = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $output,
+		);
+
+		wp_cache_set( $cache_key, $cached_output, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
         if ($echo) echo $output;
 		return $output;
@@ -1192,14 +1217,15 @@ class YARPP {
         }
 
 		// Create a cache key from the provided reference ID and args.
-		$cache_key = md5( 'get_related_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+		$cache_key = 'get_related_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
 
 		// Check for the key in the 'bu_yarpp_cache' group.
 		$cached_posts = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
-		// If cached posts is found, return them and bail.
-		if ( $cached_posts ) {
-			return $cached_posts;
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_posts && $this->wp_last_changed === $cached_posts['last_changed'] ) {
+			return $cached_posts['value'];
 		}
 
         /**
@@ -1244,7 +1270,12 @@ class YARPP {
 		$this->active_cache->end_yarpp_time();
 
 		// Cache the posts and store for one day.
-		wp_cache_set( $cache_key, $related_query->posts, 'bu_yarpp_cache', DAY_IN_SECONDS );
+		$cached_posts = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $related_query->posts,
+		);
+		
+		wp_cache_set( $cache_key, $cached_posts, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
 		return $related_query->posts;
 	}
@@ -1266,14 +1297,15 @@ class YARPP {
         }
 
 		// Create a cache key from the provided reference ID and args.
-		$cache_key = md5( 'related_exists_for_' . wp_json_encode( array( $reference_ID => $args ) ) );
+		$cache_key = 'related_exists_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
 
 		// Check for the key in the 'bu_yarpp_cache' group.
 		$cached_related = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
 
-		// If cached output is found, return it and bail.
-		if ( isset( $cached_related ) ) {
-			return $cached_related;
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_related && $this->wp_last_changed === $cached_related['last_changed'] ) {
+			return $cached_related['value'];
 		}
 
 		/** @since 3.5.3: don't compute on revisions */
@@ -1311,8 +1343,12 @@ class YARPP {
 		$return = $related_query->have_posts();
 
 		// Cache the posts and store for one day.
-		$cached_related_value = ( $return ) ? true : null;
-		wp_cache_set( $cache_key, $cached_related_value, 'bu_yarpp_cache', DAY_IN_SECONDS );
+		$cached_related = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $return,
+		);
+
+		wp_cache_set( $cache_key, $cached_related, 'bu_yarpp_cache', DAY_IN_SECONDS );
 
 		unset($related_query);
 
