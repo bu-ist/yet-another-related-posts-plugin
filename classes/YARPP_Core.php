@@ -41,6 +41,8 @@ class YARPP {
 		$this->cache            = new $this->storage_class($this);
 		$this->cache_bypass     = new YARPP_Cache_Bypass($this);
 
+		$this->wp_last_changed = $this->get_wp_last_changed();
+
 		register_activation_hook(__FILE__, array($this, 'activate'));
 
         /**
@@ -232,6 +234,23 @@ class YARPP {
         return $out;
     }
 	
+	/**
+	 * Returns the value of `last_changed` from the WP core `posts` cache group
+	 * if it exists, otherwise returns the current time.
+	 *
+	 * @return string
+	 */
+	private function get_wp_last_changed() {
+		$last_changed = wp_cache_get( 'last_changed', 'posts' );
+
+		if ( ! $last_changed ) {
+			$last_changed = microtime();
+			wp_cache_set( 'last_changed', $last_changed, 'posts' );
+		}
+
+		return $last_changed;
+	}
+
 	private function array_flatten($array, $given = array()) {
 		foreach ($array as $key => $val) {
 			$given[] = $key;
@@ -1050,6 +1069,22 @@ class YARPP {
             $reference_ID = get_the_ID();
         }
 
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = 'display_related_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_output = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
+
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_output && $this->wp_last_changed === $cached_output['last_changed'] ) {
+			if ( $echo ) {
+				echo $cached_output['value'];
+			}
+
+			return $cached_output['value'];
+		}
+
         /**
          * @since 3.5.3 don't compute on revisions.
          */
@@ -1080,11 +1115,14 @@ class YARPP {
             $orders = explode(' ', $order);
             $wp_query->query(
                 array(
-                    'p'         => $reference_ID,
-                    'orderby'   => $orders[0],
-                    'order'     => $orders[1],
-                    'showposts' => $limit,
-                    'post_type' => (isset($args['post_type']) ? $args['post_type'] : $this->get_post_types())
+                    'p'                      => $reference_ID,
+                    'orderby'                => $orders[0],
+                    'order'                  => $orders[1],
+                    'showposts'              => $limit,
+                    'post_type'              => (isset($args['post_type']) ? $args['post_type'] : $this->get_post_types()),
+                    'no_found_rows'          => true,
+                    'update_post_meta_cache' => false,
+                    'update_post_term_cache' => false,
                 )
             );
         }
@@ -1151,6 +1189,14 @@ class YARPP {
         $output .= ($optin) ? '<img src="http://yarpp.org/pixels/'.md5(get_bloginfo('url')).'" alt="YARPP"/>'."\n" : null;
         $output .= "</div>\n";
 
+		// Cache the output and store it for one day.
+		$cached_output = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $output,
+		);
+
+		wp_cache_set( $cache_key, $cached_output, 'bu_yarpp_cache', DAY_IN_SECONDS );
+
         if ($echo) echo $output;
 		return $output;
 	}
@@ -1170,11 +1216,23 @@ class YARPP {
 			$reference_ID = get_the_ID();
         }
 
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = 'get_related_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_posts = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
+
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_posts && $this->wp_last_changed === $cached_posts['last_changed'] ) {
+			return $cached_posts['value'];
+		}
+
         /**
 		 * @since 3.5.3: don't compute on revisions.
          */
 		if ($the_post = wp_is_post_revision($reference_ID)) $reference_ID = $the_post;
-			
+
 		$this->setup_active_cache($args);
 
 		$options = array('limit', 'order');
@@ -1189,11 +1247,14 @@ class YARPP {
 		$related_query = new WP_Query();
 		$orders = explode(' ',$order);
 		$related_query->query(array(
-			'p'         => $reference_ID,
-			'orderby'   => $orders[0],
-			'order'     => $orders[1],
-			'showposts' => $limit,
-			'post_type' => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types()
+			'p'                      => $reference_ID,
+			'orderby'                => $orders[0],
+			'order'                  => $orders[1],
+			'showposts'              => $limit,
+			'post_type'              => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types(),
+			'no_found_rows'          => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
 		));
 	
 		$related_query->posts = apply_filters(
@@ -1205,9 +1266,17 @@ class YARPP {
                 'related_ID'    => $reference_ID
             )
         );
-	
+
 		$this->active_cache->end_yarpp_time();
-	
+
+		// Cache the posts and store for one day.
+		$cached_posts = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $related_query->posts,
+		);
+		
+		wp_cache_set( $cache_key, $cached_posts, 'bu_yarpp_cache', DAY_IN_SECONDS );
+
 		return $related_query->posts;
 	}
 	
@@ -1227,6 +1296,18 @@ class YARPP {
 			$reference_ID = get_the_ID();
         }
 
+		// Create a cache key from the provided reference ID and args.
+		$cache_key = 'related_exists_for:' . md5( wp_json_encode( array( $reference_ID => $args ) ) );
+
+		// Check for the key in the 'bu_yarpp_cache' group.
+		$cached_related = wp_cache_get( $cache_key, 'bu_yarpp_cache' );
+
+		// If a cached value exists and its `last_changed` property matches
+		// `last_changed` from WP core, return its `value` property.
+		if ( $cached_related && $this->wp_last_changed === $cached_related['last_changed'] ) {
+			return $cached_related['value'];
+		}
+
 		/** @since 3.5.3: don't compute on revisions */
 		if ($the_post = wp_is_post_revision($reference_ID)) $reference_ID = $the_post;
 				
@@ -1240,9 +1321,13 @@ class YARPP {
 		$this->active_cache->begin_yarpp_time($reference_ID, $args);
 		$related_query = new WP_Query();
 		$related_query->query(array(
-			'p'         => $reference_ID,
-			'showposts' => 1,
-			'post_type' => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types()
+			'p'                      => $reference_ID,
+			'showposts'              => 1,
+			'post_type'              => (isset($args['post_type'])) ? $args['post_type'] : $this->get_post_types(),
+			'no_found_rows'          => true,
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
+			'fields'                 => 'ids',
 		));
 		
 		$related_query->posts = apply_filters(
@@ -1254,12 +1339,21 @@ class YARPP {
                 'related_ID'    => $reference_ID
             )
         );
-		
+
 		$return = $related_query->have_posts();
+
+		// Cache the posts and store for one day.
+		$cached_related = array(
+			'last_changed' => $this->wp_last_changed,
+			'value'        => $return,
+		);
+
+		wp_cache_set( $cache_key, $cached_related, 'bu_yarpp_cache', DAY_IN_SECONDS );
+
 		unset($related_query);
 
 		$this->active_cache->end_yarpp_time();
-	
+
 		return $return;
 	}
 		

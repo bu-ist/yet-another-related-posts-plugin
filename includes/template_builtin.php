@@ -7,8 +7,6 @@
  * More information on the custom templates is available at http://mitcho.com/blog/projects/yarpp-3-templates/
 */
 
-get_currentuserinfo();
-
 $options = array(
         'before_title',
         'after_title',
