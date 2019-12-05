@@ -214,7 +214,15 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 
 		// return a list of entities which list this post as "related"
 		if (!is_null($related_ID)) {
-			return $wpdb->get_col("select post_id from `{$wpdb->postmeta}` where meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "' and meta_value regexp 's:2:\"ID\";s:\d+:\"{$related_ID}\"'");
+
+			// `$related_ID` is checked as `is_int()` at the beginning of this method and can
+			// be used as an interpolated variable here.
+			return $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value REGEXP 's:2:\"ID\";s:\d+:\"{$related_ID}\"'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					YARPP_POSTMETA_RELATED_KEY
+				)
+			);
 		}
 
 		return false;
