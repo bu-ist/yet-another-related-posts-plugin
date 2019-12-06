@@ -166,7 +166,9 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 		global $wpdb;
 
 		$original_related = $this->related($reference_ID);
-		$related = $wpdb->get_results($this->sql($reference_ID), ARRAY_A);
+
+		// The SQL in `sql()` should be considered "prepared".
+		$related = $wpdb->get_results( $this->sql( $reference_ID ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$new_related = wp_list_pluck( $related, 'ID' );
 
 		if ( count($new_related) ) {
