@@ -50,7 +50,16 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 
 	public function stats() {
 		global $wpdb;
-		return wp_list_pluck($wpdb->get_results("select num, count(*) as ct from (select 0 + if(meta_value = '" . YARPP_NO_RELATED . "', 0, substring(substring_index(meta_value,':',2),3)) as num from `{$wpdb->postmeta}` where meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "') as t group by num order by num asc", OBJECT_K), 'ct');
+
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT num, count(*) AS ct FROM (SELECT 0 + IF(meta_value = %s, 0, substring(substring_index(meta_value,':',2),3)) AS num FROM `{$wpdb->postmeta}` WHERE meta_key = %s) AS t GROUP BY num ORDER BY num ASC",
+				YARPP_NO_RELATED,
+				YARPP_POSTMETA_RELATED_KEY
+			),
+			OBJECT_K
+		);
+		return wp_list_pluck( $results, 'ct' );
 	}
 
 	/**
