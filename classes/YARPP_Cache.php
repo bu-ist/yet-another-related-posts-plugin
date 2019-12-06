@@ -181,70 +181,99 @@ abstract class YARPP_Cache {
 		// Fetch keywords
 		$keywords = $this->get_keywords($reference_ID);
 
-		// SELECT
-		$newsql = "SELECT $reference_ID as reference_ID, ID, "; //post_title, post_date, post_content, post_excerpt,
+		// `$reference_ID` should match a post ID and can thus be treated as an int here.
+		$newsql = $wpdb->prepare( "SELECT %d as reference_ID, ID, ", $reference_ID ); //post_title, post_date, post_content, post_excerpt,
 
 		$newsql .= 'ROUND(0';
 
 		if (isset($weight['body']) && isset($weight['body']) && (int) $weight['body']) {
-			$newsql .= " + (MATCH (post_content) AGAINST ('".esc_sql($keywords['body'])."')) * ".absint($weight['body']);
+			$newsql .= $wpdb->prepare(
+				" + (MATCH (post_content) AGAINST (%s)) * %d",
+				$keywords['body'], // A space delimited string of words from the `get_keywords()` method.
+				absint( $weight['body'] )
+			);
         }
 
         if (isset($weight['body']) && isset($weight['title']) && (int) $weight['title']) {
-			$newsql .= " + (MATCH (post_title) AGAINST ('".esc_sql($keywords['title'])."')) * ".absint($weight['title']);
+			$newsql .= $wpdb->prepare(
+				" + (MATCH (post_title) AGAINST (%s)) * %d",
+				$keywords['title'], // A space delimited string of words from the `get_keywords()` method.
+				absint( $weight['title'] )
+			);
         }
 
 		// Build tax criteria query parts based on the weights
 		foreach ((array) $weight['tax'] as $tax => $tax_weight) {
-			$newsql .= " + ".$this->tax_criteria($reference_ID, $tax)." * ".intval($tax_weight);
+			// The partial SQL query returned by the `tax_criteria()` method can be considered safe.
+			$newsql .= " + " . $this->tax_criteria( $reference_ID, $tax ). " * " . intval( $tax_weight );
 		}
 
 		$newsql .= ',1) as score';
 
-		$newsql .= "\n from $wpdb->posts \n";
+		$newsql .= "\n FROM $wpdb->posts \n";
 
 		$exclude_tt_ids = wp_parse_id_list($exclude);
 
 		if (count($exclude_tt_ids) || count((array) $weight['tax']) || count($require_tax)) {
-			$newsql .= "left join $wpdb->term_relationships as terms on ( terms.object_id = $wpdb->posts.ID ) \n";
+			$newsql .= "LEFT JOIN {$wpdb->term_relationships} AS terms ON ( terms.object_id = {$wpdb->posts}.ID ) \n";
 		}
 
 		/*
 		 * Where
 		 */
-
-		$newsql .= " where post_status in ( 'publish', 'static' ) and ID != '$reference_ID'";
+		$newsql .= $wpdb->prepare( "WHERE post_status IN ( 'publish', 'static' ) AND ID != %d", $reference_ID );
 
         /**
          * @since 3.1.8 Revised $past_only option
          */
-		if ($past_only)         $newsql .= " and post_date <= '$reference_post->post_date' ";
-		if (!$show_pass_post)   $newsql .= " and post_password ='' ";
-		if ((bool) $recent)     $newsql .= " and post_date > date_sub(now(), interval {$recent}) ";
+		if ($past_only)         $newsql .= $wdpb->prepare( " AND post_date <= %s", $reference_post->post_date );
+		if (!$show_pass_post)   $newsql .= " AND post_password = '' ";
 
-		$newsql .= " and post_type = 'post'";
+		if ( (bool) $recent ) {
+
+			// The interpolated `$recent` is a bit strange here. If it evaluates as truthy when converted to a boolean,
+			// then it is passed unescaped as an interval in the SQL query. Any number of things could evaluate
+			// to `true` here, but only a temporal interval will be valid. The best we can do without writing a larger
+			// method to validate this is to escape it as proper SQL. In the future it may make sense to actual verify
+			// the value as something useful.
+			//
+			// @see https://dev.mysql.com/doc/refman/8.0/en/expressions.html#temporal-intervals
+			$recent = esc_sql( $recent );
+
+			$newsql .= " AND post_date > DATE_SUB(NOW(), INTERVAL {$recent}) ";
+		}
+
+		$newsql .= " AND post_type = 'post'";
 
 		// GROUP BY
-		$newsql .= "\n group by ID \n";
+		$newsql .= "\n GROUP BY ID \n";
 
 		// HAVING
 		// number_format fix suggested by vkovalcik! :)
 		$safethreshold = number_format(max($threshold,0.1), 2, '.', '');
 
 		/**
+		 * The `$safethreshold` value is a 2 decimal float here and safe to use without
+		 * preparing. If the query was prepared, the `%f` character would result in a
+		 * many digit float instead.
+		 *
          * @since 3.5.3: ID=0 is a special value; never save such a result.
          */
 		$newsql .= " having score >= $safethreshold and ID != 0";
 
         if (count($exclude_tt_ids)) {
-			$newsql .= " and bit_or(terms.term_taxonomy_id in (".join(',', $exclude_tt_ids).")) = 0";
+			$exclude_tt_ids = array_map( 'intval', $exclude_tt_ids );
+
+			// `$exclude_tt_ids` has been validated as a list of integers.
+			$newsql .= " AND bit_or(terms.term_taxonomy_id IN (" . join( ',', $exclude_tt_ids ) . ")) = 0";
 		}
 
 		foreach ((array) $require_tax as $tax => $number) {
-			$newsql .= ' and '.$this->tax_criteria($reference_ID, $tax).' >= '.intval($number);
+			// The partial SQL query returned by the `tax_criteria()` method can be considered safe.
+			$newsql .= ' AND ' . $this->tax_criteria( $reference_ID, $tax ) . ' >= ' . intval( $number );
 		}
 
-		$newsql .= " order by score desc limit $limit";
+		$newsql .= $wpdb->prepare( " ORDER BY score DESC LIMIT %d", $limit );
 
 		if (isset($args['post_type'])) {
 			$post_types = (array) $args['post_type'];
@@ -254,7 +283,8 @@ abstract class YARPP_Cache {
 
 		$queries = array();
 		foreach ($post_types as $post_type) {
-			$queries[] = '('.str_replace("post_type = 'post'", "post_type = '{$post_type}'", $newsql).')';
+			$query = $wpdb->prepare( "post_type = %s", $post_type );
+			$queries[] = '(' . str_replace( "post_type = 'post'", $query, $newsql ) . ')';
 		}
 
 		$sql = implode(' union ', $queries);
@@ -272,8 +302,11 @@ abstract class YARPP_Cache {
 		// if there are no terms of that tax
 		if (false === $terms) return '(1 = 0)';
 
-		$tt_ids = wp_list_pluck($terms, 'term_taxonomy_id');
-		return "count(distinct if( terms.term_taxonomy_id in (".join(',',$tt_ids)."), terms.term_taxonomy_id, null ))";
+		$tt_ids = wp_list_pluck( $terms, 'term_taxonomy_id' ); // Retrieve a list of term taxonomy IDs.
+		$tt_ids = array_map( 'intval', $tt_ids );              // Ensure the list is made of integers.
+
+		// Return a partial, safe SQL statement.
+		return "COUNT(DISTINCT IF( terms.term_taxonomy_id in (" . join( ',', $tt_ids ) . "), terms.term_taxonomy_id, null ))";
 	}
 
 	/*
