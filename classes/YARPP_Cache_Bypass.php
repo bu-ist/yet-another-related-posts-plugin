@@ -144,8 +144,9 @@ class YARPP_Cache_Bypass extends YARPP_Cache {
         );
         $this->args = $this->core->parse_args($args, $options);
 
-        $this->related_postdata = $wpdb->get_results($this->sql($reference_ID, $args), ARRAY_A);
-        $this->related_IDs = wp_list_pluck($this->related_postdata, 'ID');
+		// The query returned by `$this->sql()` can be considered safe/prepared.
+		$this->related_postdata = $wpdb->get_results( $this->sql( $reference_ID, $args ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$this->related_IDs = wp_list_pluck($this->related_postdata, 'ID');
 
         add_filter('posts_where',array(&$this,'where_filter'));
         add_filter('posts_orderby',array(&$this,'orderby_filter'));
@@ -205,7 +206,8 @@ class YARPP_Cache_Bypass extends YARPP_Cache {
             return;
         }
 
-        $results = $wpdb->get_results($this->sql($reference_ID), ARRAY_A);
+		// The query returned by `$this->sql()` can be considered safe/prepared.
+		$results = $wpdb->get_results( $this->sql( $reference_ID ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
         if ( !$results || !count($results) )
             return false;
 

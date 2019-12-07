@@ -10,14 +10,14 @@ class YARPP_Admin {
 		/* If action = flush and the nonce is correct, reset the cache */
 		if (isset($_GET['action']) && $_GET['action'] === 'flush' && check_ajax_referer('yarpp_cache_flush', false, false) !== false) {
 			$this->core->cache->flush();
-			wp_redirect(admin_url('/options-general.php?page=yarpp'));
+			wp_safe_redirect( admin_url( '/options-general.php?page=yarpp' ) );
 			die();
 		}
 
 		/* If action = copy_templates and the nonce is correct, copy templates */
 		if (isset($_GET['action']) && $_GET['action'] === 'copy_templates' && check_ajax_referer('yarpp_copy_templates', false, false) !== false) {
 			$this->copy_templates();
-			wp_redirect(admin_url('/options-general.php?page=yarpp'));
+			wp_safe_redirect( admin_url( '/options-general.php?page=yarpp' ) );
 			die();
 		}
 
@@ -500,7 +500,16 @@ class YARPP_Admin {
 		$tt_ids = wp_parse_id_list($tt_ids);
 		if ( empty($tt_ids) )
 			return array();
-		return $wpdb->get_col("select term_id from $wpdb->term_taxonomy where taxonomy = '{$taxonomy}' and term_taxonomy_id in (" . join(',', $tt_ids) . ")");
+
+		$query = $wpdb->prepare(
+			"SELECT term_id FROM $wpdb->term_taxonomy WHERE taxonomy = %s ",
+			$taxonomy
+		);
+
+		// `$tt_ids` is a valid array of integers via `wp_parse_id_list()`.
+		$query .= 'AND term_taxonomy_id in (' . join( ',', $tt_ids ) . ')';
+
+		return $wpdb->get_col( $query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 	}
 	
 	public function ajax_display() {
