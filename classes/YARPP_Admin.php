@@ -10,14 +10,14 @@ class YARPP_Admin {
 		/* If action = flush and the nonce is correct, reset the cache */
 		if (isset($_GET['action']) && $_GET['action'] === 'flush' && check_ajax_referer('yarpp_cache_flush', false, false) !== false) {
 			$this->core->cache->flush();
-			wp_redirect(admin_url('/options-general.php?page=yarpp'));
+			wp_safe_redirect( admin_url( '/options-general.php?page=yarpp' ) );
 			die();
 		}
 
 		/* If action = copy_templates and the nonce is correct, copy templates */
 		if (isset($_GET['action']) && $_GET['action'] === 'copy_templates' && check_ajax_referer('yarpp_copy_templates', false, false) !== false) {
 			$this->copy_templates();
-			wp_redirect(admin_url('/options-general.php?page=yarpp'));
+			wp_safe_redirect( admin_url( '/options-general.php?page=yarpp' ) );
 			die();
 		}
 
