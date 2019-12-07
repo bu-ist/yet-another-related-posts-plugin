@@ -500,7 +500,16 @@ class YARPP_Admin {
 		$tt_ids = wp_parse_id_list($tt_ids);
 		if ( empty($tt_ids) )
 			return array();
-		return $wpdb->get_col("select term_id from $wpdb->term_taxonomy where taxonomy = '{$taxonomy}' and term_taxonomy_id in (" . join(',', $tt_ids) . ")");
+
+		$query = $wpdb->prepare(
+			"SELECT term_id FROM $wpdb->term_taxonomy WHERE taxonomy = %s ",
+			$taxonomy
+		);
+
+		// `$tt_ids` is a valid array of integers via `wp_parse_id_list()`.
+		$query .= 'AND term_taxonomy_id in (' . join( ',', $tt_ids ) . ')';
+
+		return $wpdb->get_col( $query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 	}
 	
 	public function ajax_display() {
