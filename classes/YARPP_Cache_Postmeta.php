@@ -33,10 +33,15 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 
 	public function cache_status() {
 		global $wpdb;
-		return $wpdb->get_var("select (count(p.ID)-sum(m.meta_value IS NULL))/count(p.ID)
-			FROM `{$wpdb->posts}` as p
-			LEFT JOIN `{$wpdb->postmeta}` as m ON (p.ID = m.post_id and m.meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "')
-			WHERE p.post_status = 'publish'");
+		return $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT (count(p.ID)-sum(m.meta_value IS NULL))/count(p.ID)
+				FROM `{$wpdb->posts}` AS p
+				LEFT JOIN `{$wpdb->postmeta}` AS m ON (p.ID = m.post_id AND m.meta_key = %s)
+				WHERE p.post_status = 'publish'",
+				YARPP_POSTMETA_RELATED_KEY
+			)
+		);
 	}
 
 	public function uncached($limit = 20, $offset = 0) {
