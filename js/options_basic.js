@@ -238,7 +238,7 @@ jQuery(function($) {
 	function display_optin_data() {
 		setTimeout(_display_optin_data, 0);
 	}
-	$('#yarpp-optin-learnmore, a[aria-controls=tab-panel-optin]').bind('click focus', display_optin_data);
+	$('#yarpp-optin-learnmore, a[aria-controls=tab-panel-optin]').on('click focus', display_optin_data);
 	display_optin_data();
 
 	function sync_no_results() {
