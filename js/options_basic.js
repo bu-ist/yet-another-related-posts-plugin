@@ -17,7 +17,7 @@ jQuery(function($) {
 	function excerpt() {
 		var metabox = $(this).closest('#yarpp_display_web, #yarpp_display_rss');
 		metabox.find('.excerpted').toggle(
-            !!(metabox.find('.use_template').val() === 'builtin' && metabox.find('.show_excerpt input').attr('checked'))
+            !!(metabox.find('.use_template').val() === 'builtin' && metabox.find('.show_excerpt input').prop('checked'))
         );
 	}
 	$('.show_excerpt, .use_template, #yarpp-rss_display').click(excerpt);
@@ -191,7 +191,7 @@ jQuery(function($) {
 		$(this).addClass('active');
 	});
 
-	$('.yarpp_copy_templates_button').live('click', function() {
+	$(document).on('click', '.yarpp_copy_templates_button', function() {
 		window.location = window.location + (window.location.search.length ? '&' : '?') + 'action=copy_templates&_ajax_nonce=' + $('#yarpp_copy_templates-nonce').val();
 	});
 
@@ -238,7 +238,7 @@ jQuery(function($) {
 	function display_optin_data() {
 		setTimeout(_display_optin_data, 0);
 	}
-	$('#yarpp-optin-learnmore, a[aria-controls=tab-panel-optin]').bind('click focus', display_optin_data);
+	$('#yarpp-optin-learnmore, a[aria-controls=tab-panel-optin]').on('click focus', display_optin_data);
 	display_optin_data();
 
 	function sync_no_results() {
@@ -265,9 +265,9 @@ jQuery(function($) {
 	function auto_display_archive() {
 		var available = $('.yarpp_form_post_types').is(':has(input[type=checkbox]:checked)');
 		$('#yarpp-auto_display_archive')
-			.attr('disabled', !available);
+			.prop('disabled', !available);
 		if ( !available )
-			$('#yarpp-auto_display_archive').attr('checked', false);
+			$('#yarpp-auto_display_archive').prop('checked', false);
 	}
 	$('.yarpp_form_post_types input[type=checkbox]').change(auto_display_archive);
 	auto_display_archive();
