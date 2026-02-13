@@ -12,7 +12,13 @@ if ($yarpp->debug) {
 $output .= '<p>'.__( 'These are the related entries for this entry. Updating this post may change these related posts.' , 'yarpp').'</p>';
 
 if ($yarpp->debug) {
-	$output .= "<p>last updated: ".$wpdb->get_var("select max(date) as updated from {$wpdb->prefix}yarpp_related_cache where reference_ID = '$reference_ID'")."</p>";
+	$updated_date = $wpdb->get_var(
+		$wpdb->prepare(
+			"SELECT MAX(date) AS updated FROM {$wpdb->prefix}yarpp_related_cache WHERE reference_ID = %d",
+			$reference_ID
+		)
+	);
+	$output .= '<p>last updated: ' . esc_html( $updated_date ) . '</p>';
 }
 
 if (have_posts()) {

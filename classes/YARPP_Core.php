@@ -625,30 +625,34 @@ class YARPP {
 			$value = stripslashes(stripslashes($value));
 			// value options used to be stored with a blank space at the end... don't ask.
 			$value = rtrim($value, ' ');
-			
+
 			if (is_int($default)) {
 				$yarpp_options[$key] = absint($value);
             } else {
 				$yarpp_options[$key] = $value;
             }
 		}
-		
+
 		// add the options directly first, then call set_option which will ensure defaults,
 		// in case any new options have been added.
 		update_option('yarpp', $yarpp_options);
 		$this->set_option($yarpp_options);
-		
+
 		$option_keys = array_keys($yarpp_options);
 		// append some keys for options which are long deprecated:
 		$option_keys[] = 'ad_hoc_caching';
 		$option_keys[] = 'excerpt_len';
 		$option_keys[] = 'show_score';
+
 		if (count($option_keys)) {
-			$in = "('yarpp_".join("', 'yarpp_", $option_keys)."')";
-			$wpdb->query("DELETE FROM {$wpdb->options} WHERE option_name IN {$in}");
+			$option_keys = esc_sql( $option_keys );
+			$in = "('yarpp_" . join( "', 'yarpp_", $option_keys ) . "')";
+
+			// `$in` has been prepared via `esc_sql()` of option keys before being built.
+			$wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name IN {$in}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		}
 	}
-	
+
 	public function upgrade_3_4b5() {
 		$options = $this->get_option();
 		$options['exclude'] = array(

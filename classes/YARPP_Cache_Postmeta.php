@@ -33,24 +33,43 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 
 	public function cache_status() {
 		global $wpdb;
-		return $wpdb->get_var("select (count(p.ID)-sum(m.meta_value IS NULL))/count(p.ID)
-			FROM `{$wpdb->posts}` as p
-			LEFT JOIN `{$wpdb->postmeta}` as m ON (p.ID = m.post_id and m.meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "')
-			WHERE p.post_status = 'publish'");
+		return $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT (count(p.ID)-sum(m.meta_value IS NULL))/count(p.ID)
+				FROM `{$wpdb->posts}` AS p
+				LEFT JOIN `{$wpdb->postmeta}` AS m ON (p.ID = m.post_id AND m.meta_key = %s)
+				WHERE p.post_status = 'publish'",
+				YARPP_POSTMETA_RELATED_KEY
+			)
+		);
 	}
 
 	public function uncached($limit = 20, $offset = 0) {
 		global $wpdb;
-		return $wpdb->get_col("select SQL_CALC_FOUND_ROWS p.ID
-			FROM `{$wpdb->posts}` as p
-			LEFT JOIN `{$wpdb->postmeta}` as m ON (p.ID = m.post_id and m.meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "')
-			WHERE p.post_status = 'publish' and m.meta_value IS NULL
-			LIMIT $limit OFFSET $offset");
+		return $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT SQL_CALC_FOUND_ROWS p.ID FROM `{$wpdb->posts}` AS p LEFT JOIN `{$wpdb->postmeta}` AS m ON (p.ID = m.post_id AND m.meta_key = %s)
+				WHERE p.post_status = 'publish' AND m.meta_value IS NULL
+				LIMIT %d OFFSET %d",
+				YARPP_POSTMETA_RELATED_KEY,
+				$limit,
+				$offset
+			)
+		);
 	}
 
 	public function stats() {
 		global $wpdb;
-		return wp_list_pluck($wpdb->get_results("select num, count(*) as ct from (select 0 + if(meta_value = '" . YARPP_NO_RELATED . "', 0, substring(substring_index(meta_value,':',2),3)) as num from `{$wpdb->postmeta}` where meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "') as t group by num order by num asc", OBJECT_K), 'ct');
+
+		$results = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT num, count(*) AS ct FROM (SELECT 0 + IF(meta_value = %s, 0, substring(substring_index(meta_value,':',2),3)) AS num FROM `{$wpdb->postmeta}` WHERE meta_key = %s) AS t GROUP BY num ORDER BY num ASC",
+				YARPP_NO_RELATED,
+				YARPP_POSTMETA_RELATED_KEY
+			),
+			OBJECT_K
+		);
+		return wp_list_pluck( $results, 'ct' );
 	}
 
 	/**
@@ -157,7 +176,9 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 		global $wpdb;
 
 		$original_related = $this->related($reference_ID);
-		$related = $wpdb->get_results($this->sql($reference_ID), ARRAY_A);
+
+		// The SQL in `sql()` should be considered "prepared".
+		$related = $wpdb->get_results( $this->sql( $reference_ID ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 		$new_related = wp_list_pluck( $related, 'ID' );
 
 		if ( count($new_related) ) {
@@ -214,7 +235,15 @@ class YARPP_Cache_Postmeta extends YARPP_Cache {
 
 		// return a list of entities which list this post as "related"
 		if (!is_null($related_ID)) {
-			return $wpdb->get_col("select post_id from `{$wpdb->postmeta}` where meta_key = '" . YARPP_POSTMETA_RELATED_KEY . "' and meta_value regexp 's:2:\"ID\";s:\d+:\"{$related_ID}\"'");
+
+			// `$related_ID` is checked as `is_int()` at the beginning of this method and can
+			// be used as an interpolated variable here.
+			return $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value REGEXP 's:2:\"ID\";s:\d+:\"{$related_ID}\"'", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					YARPP_POSTMETA_RELATED_KEY
+				)
+			);
 		}
 
 		return false;
